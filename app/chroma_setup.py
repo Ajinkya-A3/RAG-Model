@@ -53,14 +53,42 @@ def sentence_token_chunks(text: str, max_tokens=100, overlap_tokens=20) -> List[
     return chunks
 
 # ✅ Add a single document to ChromaDB with proper filename-based chunk IDs
-def add_doc_to_chroma(text: str, filename: str = "uploaded.txt"):
+def add_doc_to_chroma(text: str, filename: str = "uploaded.txt") -> dict:
     chunks = sentence_token_chunks(text)
     if not chunks:
-        return
+        return {"status": "skipped", "reason": "No valid chunks found in file."}
+
     base_name = os.path.splitext(os.path.basename(filename))[0]
-    chunk_ids = [f"{base_name}_chunk_{i}" for i in range(len(chunks))]
-    embeddings = embedder.encode(chunks).tolist()
-    collection.add(documents=chunks, ids=chunk_ids, embeddings=embeddings)
+
+    # Get existing docs for deduplication
+    existing_docs = set(collection.get()["documents"])
+
+    # Deduplicate by string match
+    unique_chunks = [chunk for chunk in chunks if chunk not in existing_docs]
+    added_count = len(unique_chunks)
+
+    if added_count == 0:
+        return {
+            "status": "skipped",
+            "reason": "All chunks already exist in the DataBase.",
+            "total_chunks": len(chunks),
+            "added_chunks": 0
+        }
+
+    existing_ids = collection.get()["ids"]
+    start_idx = len(existing_ids)
+    chunk_ids = [f"{base_name}_chunk_{i}" for i in range(start_idx, start_idx + added_count)]
+
+    embeddings = embedder.encode(unique_chunks).tolist()
+    collection.add(documents=unique_chunks, ids=chunk_ids, embeddings=embeddings)
+
+    return {
+        "status": "added",
+        "filename": filename,
+        "total_chunks": len(chunks),
+        "added_chunks": added_count
+    }
+
 
 # ✅ Load all .txt files in ./data into ChromaDB
 def setup_chroma():

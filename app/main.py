@@ -34,14 +34,18 @@ async def upload_txt(file: UploadFile = File(...)):
         if not content:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
         text = content.decode("utf-8")
+
         os.makedirs("./data", exist_ok=True)
         file_path = os.path.join("./data", file.filename)
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(text)
-        add_doc_to_chroma(text, filename=file.filename)
-        return {"status": "uploaded", "filename": file.filename}
+
+        result = add_doc_to_chroma(text, file.filename)
+        return result
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Upload failed: {str(e)}"})
+
 
 @app.post("/rag")
 def rag(query: Query):
