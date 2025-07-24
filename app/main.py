@@ -15,6 +15,20 @@ except Exception as e:
 class Query(BaseModel):
     prompt: str
 
+@app.get("/")
+def liveness_probe():
+    return {"status": "alive"}
+
+@app.get("/ready")
+def readiness_probe():
+    try:
+        # Simple test query to check if ChromaDB is reachable
+        _ = collection.count()
+        return {"status": "ready"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"ChromaDB not ready: {str(e)}")
+
+
 @app.post("/upload")
 async def upload_txt(file: UploadFile = File(...)):
     try:
