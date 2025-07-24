@@ -19,7 +19,7 @@ try:
 except LookupError:
     nltk.download("punkt", download_dir=nltk_data_path)
 
-# ✅ Manual Punkt tokenizer (bypasses broken `punkt_tab`)
+# ✅ Manual Punkt tokenizer
 punkt_params = PunktParameters()
 punkt_tokenizer = PunktSentenceTokenizer(punkt_params)
 
@@ -27,10 +27,10 @@ punkt_tokenizer = PunktSentenceTokenizer(punkt_params)
 client = chromadb.PersistentClient(path="./chroma_db")
 collection = client.get_or_create_collection(name="devops-rag")
 
-# ✅ Embedder
+# ✅ SentenceTransformer embedder
 embedder = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 
-# ✅ Sentence-aware chunking with overlap
+# ✅ Sentence-aware chunking with token overlap
 def sentence_token_chunks(text: str, max_tokens=100, overlap_tokens=20) -> List[str]:
     sentences = punkt_tokenizer.tokenize(text)
     chunks = []
@@ -43,9 +43,7 @@ def sentence_token_chunks(text: str, max_tokens=100, overlap_tokens=20) -> List[
             current_chunk.append(sentence)
             current_length += token_count
         else:
-            # Finalize current chunk
             chunks.append(" ".join(current_chunk))
-            # Prepare overlap + new sentence
             overlap = " ".join(current_chunk).split()[-overlap_tokens:] if overlap_tokens > 0 else []
             current_chunk = [" ".join(overlap), sentence] if overlap else [sentence]
             current_length = sum(len(s.split()) for s in current_chunk)
@@ -54,17 +52,17 @@ def sentence_token_chunks(text: str, max_tokens=100, overlap_tokens=20) -> List[
         chunks.append(" ".join(current_chunk))
     return chunks
 
-# ✅ Add single doc to ChromaDB
-def add_doc_to_chroma(text: str):
+# ✅ Add a single document to ChromaDB with proper filename-based chunk IDs
+def add_doc_to_chroma(text: str, filename: str = "uploaded.txt"):
     chunks = sentence_token_chunks(text)
     if not chunks:
         return
-    existing_ids = collection.get()["ids"]
-    chunk_ids = [f"chunk_{len(existing_ids) + i}" for i in range(len(chunks))]
+    base_name = os.path.splitext(os.path.basename(filename))[0]
+    chunk_ids = [f"{base_name}_chunk_{i}" for i in range(len(chunks))]
     embeddings = embedder.encode(chunks).tolist()
     collection.add(documents=chunks, ids=chunk_ids, embeddings=embeddings)
 
-# ✅ Setup ChromaDB with all files in /data
+# ✅ Load all .txt files in ./data into ChromaDB
 def setup_chroma():
     os.makedirs("./data", exist_ok=True)
     docs, ids = [], []
@@ -76,8 +74,9 @@ def setup_chroma():
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
             chunks = sentence_token_chunks(content)
+            base_name = os.path.splitext(fname)[0]
             docs.extend(chunks)
-            ids.extend([f"{fname}_chunk_{i}" for i in range(len(chunks))])
+            ids.extend([f"{base_name}_chunk_{i}" for i in range(len(chunks))])
 
     if docs:
         embeddings = embedder.encode(docs).tolist()
