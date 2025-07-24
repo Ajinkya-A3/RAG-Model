@@ -68,23 +68,96 @@ The server will start at `http://127.0.0.1:8000`
 
 ## 🧪 API Endpoints
 
-### ✅ `GET /`
-Liveness probe.
+### 🟢 `GET /`
+Liveness probe.  
+**Use:** Check if the app is running.  
+**Response:** `{ "status": "alive" }`
 
-### ✅ `GET /ready`
-Readiness probe. Verifies ChromaDB is accessible.
+---
+
+### 🟢 `GET /ready`
+Readiness probe.  
+**Use:** Confirms ChromaDB is reachable and initialized.  
+**Response:** `{ "status": "ready" }`
+
+---
 
 ### 📄 `POST /upload`
-Upload `.txt` file and store sentence chunks as vector embeddings.
+Upload a `.txt` file. Automatically chunks the file by sentences and stores the vectors in ChromaDB, avoiding duplicates.
+
+**Request:**  
+Content-Type: `multipart/form-data`  
+Field: `file` = `.txt` file
+
+**Response (Example):**
+```json
+{
+  "status": "uploaded",
+  "filename": "devops.txt",
+  "added_chunks": 17,
+  "skipped_duplicates": 3
+}
+```
+
+---
 
 ### 🔍 `POST /search`
-Search for semantically similar chunks using a natural language query.
+Semantic search on uploaded data.
+
+**Request Body:**
+```json
+{
+  "prompt": "How do I set environment variables in Docker?"
+}
+```
+
+**Response:**
+```json
+{
+  "query": "How do I set environment variables in Docker?",
+  "matches": [
+    {
+      "document": "...matched content...",
+      "id": "docker_guide_chunk_2",
+      "distance": 0.13
+    }
+  ]
+}
+```
+
+---
 
 ### 💬 `POST /rag`
-Retrieves top relevant context and uses it with a local LLM to generate a response.
+Retrieves relevant chunks and passes them to a local LLM (Ollama) for a natural language response.
+
+**Request Body:**
+```json
+{
+  "prompt": "Explain how Kubernetes probes work"
+}
+```
+
+**Response:**
+```json
+{
+  "context": "...top matching chunks...",
+  "answer": "Kubernetes uses liveness and readiness probes to determine..."
+}
+```
+
+---
 
 ### 📚 `GET /records`
-Returns all chunks in the ChromaDB collection.
+Returns all stored ChromaDB records.
+
+**Response:**
+```json
+{
+  "count": 42,
+  "ids": ["devops_chunk_0", "devops_chunk_1", "..."],
+  "documents": ["First chunk", "Second chunk", "..."]
+}
+```
 
 ---
 
