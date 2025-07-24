@@ -4,6 +4,13 @@ from pydantic import BaseModel
 from chroma_setup import add_doc_to_chroma, setup_chroma, collection
 from rag import query_chroma, call_ollama
 import os
+from sentence_transformers import SentenceTransformer
+
+# ✅ Optional: Set custom cache directory for HuggingFace model
+os.environ["HF_HOME"] = os.path.abspath("./transformer_model")
+
+# ✅ Initialize the embedder (needed for /search endpoint)
+embedder = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 
 app = FastAPI()
 
@@ -70,3 +77,38 @@ def list_all_records():
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": f"Failed to fetch records: {str(e)}"})
+
+@app.post("/search")
+def semantic_search(query: Query):
+    try:
+        if not query.prompt.strip():
+            raise HTTPException(status_code=400, detail="Query is empty.")
+
+        # Manually embed using mpnet
+        embedding = embedder.encode([query.prompt])[0].tolist()
+
+        # Perform query on ChromaDB
+        results = collection.query(
+            query_embeddings=[embedding],
+            n_results=5
+        )
+
+        documents = results.get("documents", [[]])[0]
+        ids = results.get("ids", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+
+        matches = []
+        for doc, doc_id, dist in zip(documents, ids, distances):
+            matches.append({
+                "document": doc,
+                "id": doc_id,
+                "distance": dist
+            })
+
+        return {
+            "query": query.prompt,
+            "matches": matches
+        }
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Search failed: {str(e)}"})
