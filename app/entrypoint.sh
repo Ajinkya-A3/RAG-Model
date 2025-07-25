@@ -3,7 +3,7 @@
 # Download nltk data to local directory (once)
 if [ ! -d "./nltk_data/tokenizers/punkt" ]; then
   echo "📥 Downloading NLTK 'punkt'..."
-#  python3 -m nltk.downloader punkt -d ./nltk_data
+# python3 -m nltk.downloader punkt -d ./nltk_data
   python3 nltk_setup.py
 fi
 
