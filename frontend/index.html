@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI RAG Frontend (All-in-One)</title>
+    <style>
+        /* --- style.css content starts here --- */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2 {
+            color: #0056b3;
+        }
+
+        section {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+
+        section:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        input[type="text"],
+        input[type="file"] {
+            width: calc(100% - 120px);
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .results-box {
+            background-color: #e9ecef;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+        }
+
+        .results-box pre {
+            margin: 0;
+            padding: 0;
+            font-size: 0.9em;
+        }
+
+        .api-status span {
+            font-weight: bold;
+        }
+        #liveness-status.alive { color: green; }
+        #readiness-status.ready { color: green; }
+        #liveness-status.dead { color: red; }
+        #readiness-status.not-ready { color: red; }
+        /* --- style.css content ends here --- */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FastAPI Semantic Search & RAG</h1>
+
+        <section class="api-status">
+            <h2>API Status</h2>
+            <p>Liveness: <span id="liveness-status">Checking...</span></p>
+            <p>Readiness: <span id="readiness-status">Checking...</span></p>
+            <button onclick="checkApiStatus()">Refresh Status</button>
+        </section>
+
+        <section class="upload-section">
+            <h2>Upload Text File (.txt)</h2>
+            <input type="file" id="uploadFile" accept=".txt">
+            <button onclick="uploadFile()">Upload</button>
+            <p id="upload-message" class="message"></p>
+        </section>
+
+        <section class="search-section">
+            <h2>Semantic Search</h2>
+            <input type="text" id="searchPrompt" placeholder="Enter your search query...">
+            <button onclick="performSearch()">Search</button>
+            <div id="searchResults" class="results-box"></div>
+        </section>
+
+        <section class="rag-section">
+            <h2>RAG (Retrieval-Augmented Generation)</h2>
+            <input type="text" id="ragPrompt" placeholder="Ask a question for RAG...">
+            <button onclick="performRag()">Get Answer</button>
+            <div id="ragResults" class="results-box"></div>
+        </section>
+
+        <section class="records-section">
+            <h2>All Stored Records</h2>
+            <button onclick="getAllRecords()">Show Records</button>
+            <div id="allRecords" class="results-box"></div>
+        </section>
+    </div>
+
+    <script>
+        /* --- script.js content starts here --- */
+        const API_BASE_URL = 'http://127.0.0.1:8000'; // Make sure this matches your FastAPI server address
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkApiStatus(); // Check status on page load
+        });
+
+        async function checkApiStatus() {
+            const livenessStatus = document.getElementById('liveness-status');
+            const readinessStatus = document.getElementById('readiness-status');
+
+            try {
+                const livenessRes = await fetch(`${API_BASE_URL}/`);
+                const livenessData = await livenessRes.json();
+                if (livenessData.status === 'alive') {
+                    livenessStatus.textContent = 'Alive';
+                    livenessStatus.className = 'alive';
+                } else {
+                    livenessStatus.textContent = 'Dead';
+                    livenessStatus.className = 'dead';
+                }
+            } catch (error) {
+                livenessStatus.textContent = 'Dead (Error)';
+                livenessStatus.className = 'dead';
+                console.error('Liveness check failed:', error);
+            }
+
+            try {
+                const readinessRes = await fetch(`${API_BASE_URL}/ready`);
+                const readinessData = await readinessRes.json();
+                if (readinessData.status === 'ready') {
+                    readinessStatus.textContent = 'Ready';
+                    readinessStatus.className = 'ready';
+                } else {
+                    readinessStatus.textContent = 'Not Ready';
+                    readinessStatus.className = 'not-ready';
+                }
+            } catch (error) {
+                readinessStatus.textContent = 'Not Ready (Error)';
+                readinessStatus.className = 'not-ready';
+                console.error('Readiness check failed:', error);
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('uploadFile');
+            const uploadMessage = document.getElementById('upload-message');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                uploadMessage.textContent = 'Please select a file to upload.';
+                uploadMessage.className = 'message error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/upload`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    uploadMessage.textContent = `File uploaded: ${data.filename}. Added Chunks: ${data.added_chunks}, Skipped Duplicates: ${data.skipped_duplicates}.`;
+                    uploadMessage.className = 'message success';
+                } else {
+                    uploadMessage.textContent = `Error uploading file: ${data.detail || response.statusText}`;
+                    uploadMessage.className = 'message error';
+                }
+            } catch (error) {
+                uploadMessage.textContent = `Network error: ${error.message}`;
+                uploadMessage.className = 'message error';
+                console.error('Upload error:', error);
+            }
+        }
+
+        async function performSearch() {
+            const searchPrompt = document.getElementById('searchPrompt').value;
+            const searchResults = document.getElementById('searchResults');
+
+            if (!searchPrompt) {
+                searchResults.innerHTML = '<p class="message error">Please enter a search prompt.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: searchPrompt }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.matches && data.matches.length > 0) {
+                        let html = `<h3>Query: "${data.query}"</h3><h4>Matches:</h4><ul>`;
+                        data.matches.forEach(match => {
+                            html += `<li><strong>ID:</strong> ${match.id}<br><strong>Distance:</strong> ${match.distance.toFixed(4)}<br><strong>Document:</strong> ${match.document}</li>`;
+                        });
+                        html += '</ul>';
+                        searchResults.innerHTML = html;
+                    } else {
+                        searchResults.innerHTML = '<p>No matches found.</p>';
+                    }
+                } else {
+                    searchResults.innerHTML = `<p class="message error">Error performing search: ${data.detail || response.statusText}</p>`;
+                }
+            } catch (error) {
+                searchResults.innerHTML = `<p class="message error">Network error: ${error.message}</p>`;
+                console.error('Search error:', error);
+            }
+        }
+
+        async function performRag() {
+            const ragPrompt = document.getElementById('ragPrompt').value;
+            const ragResults = document.getElementById('ragResults');
+
+            if (!ragPrompt) {
+                ragResults.innerHTML = '<p class="message error">Please enter a RAG prompt.</p>';
+                return;
+            }
+
+            try {
+                ragResults.innerHTML = '<p>Generating answer...</p>'; // Show loading message
+                const response = await fetch(`${API_BASE_URL}/rag`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt: ragPrompt }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = `<h3>Context:</h3><pre>${data.context}</pre><h3>Answer:</h3><p>${data.answer}</p>`;
+                    ragResults.innerHTML = html;
+                } else {
+                    ragResults.innerHTML = `<p class="message error">Error generating RAG answer: ${data.detail || response.statusText}</p>`;
+                }
+            } catch (error) {
+                ragResults.innerHTML = `<p class="message error">Network error: ${error.message}</p>`;
+                console.error('RAG error:', error);
+            }
+        }
+
+        async function getAllRecords() {
+            const allRecordsDiv = document.getElementById('allRecords');
+            try {
+                const response = await fetch(`${API_BASE_URL}/records`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = `<h3>Total Records: ${data.count}</h3>`;
+                    if (data.count > 0) {
+                        html += '<h4>Documents:</h4><pre>';
+                        data.documents.forEach((doc, index) => {
+                            html += `ID: ${data.ids[index]}\nDocument: ${doc}\n\n`;
+                        });
+                        html += '</pre>';
+                    } else {
+                        html += '<p>No records found.</p>';
+                    }
+                    allRecordsDiv.innerHTML = html;
+                } else {
+                    allRecordsDiv.innerHTML = `<p class="message error">Error fetching records: ${data.detail || response.statusText}</p>`;
+                }
+            } catch (error) {
+                allRecordsDiv.innerHTML = `<p class="message error">Network error: ${error.message}</p>`;
+                console.error('Get records error:', error);
+            }
+        }
+        /* --- script.js content ends here --- */
+    </script>
+</body>
+</html>
