@@ -1,11 +1,21 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from chroma_setup import add_doc_to_chroma, setup_chroma, collection, embedder
 from rag import query_chroma, call_ollama
 import os
 
 app = FastAPI()
+
+# ✅ Allow all or specific origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Use "*" for development or specify for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 try:
     setup_chroma()
