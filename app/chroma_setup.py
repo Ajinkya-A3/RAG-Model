@@ -24,16 +24,7 @@ punkt_params = PunktParameters()
 punkt_tokenizer = PunktSentenceTokenizer(punkt_params)
 
 # ✅ Persistent ChromaDB client
-client = chromadb.PersistentClient(
-    path="./chroma_db",
-    settings=chromadb.Settings(
-        chroma_db_impl="duckdb+parquet",
-        anonymized_telemetry=False,
-        is_persistent=True,
-        allow_reset=True,
-        index_type="faiss"  #  Enables FAISS indexing
-    )
-)
+client = chromadb.PersistentClient(path="./chroma_db")
 
 collection = client.get_or_create_collection(name="devops-rag")
 
