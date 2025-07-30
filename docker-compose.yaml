@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  application:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: application
+    container_name: application
+    volumes:
+      - ./app:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - CHROMA_HOST=chroma
+      - CHROMA_PORT=8000
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - chroma
+      - ollama
+    networks:
+      - net
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    container_name: chroma
+    ports:
+      - "8001:8000"  # Optional: expose ChromaDB externally
+    volumes:
+      - ./index_data:/chroma/.chroma/index
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - net
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    entrypoint: >
+      sh -c "ollama serve & sleep 5 && ollama pull gemma:2b && tail -f /dev/null"
+    volumes:
+      - ./ollama_data:/root/.ollama
+    networks:
+      - net
+
+volumes:
+  index_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  net:
+    driver: bridge
