@@ -1,4 +1,5 @@
 import os
+from config import CHROMA_HOST, CHROMA_PORT
 
 # ✅ Set HuggingFace model cache directory before any imports
 os.environ["HF_HOME"] = os.path.abspath("./transformer_model")
@@ -24,7 +25,13 @@ punkt_params = PunktParameters()
 punkt_tokenizer = PunktSentenceTokenizer(punkt_params)
 
 # ✅ Persistent ChromaDB client
-client = chromadb.PersistentClient(path="./chroma_db")
+# client = chromadb.PersistentClient(path="./chroma_db")
+
+
+client = chromadb.HttpClient(
+    host=CHROMA_HOST,
+    port=CHROMA_PORT
+)
 
 collection = client.get_or_create_collection(name="devops-rag")
 
